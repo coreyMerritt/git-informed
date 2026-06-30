@@ -1,0 +1,31 @@
+# Caches
+*.*cache/
+.mypy_cache
+.pytest_cache
+.ruff_cache
+__pycache__
+
+# Build & Package Data
+*.spec
+*.egg-info/
+build/
+dist/
+
+# Secrets
+.env
+*.db
+!.env.model
+backups/
+!backups/.gitkeep
+backups/database/
+!backups/database/.gitkeep
+config/*
+!config/models
+
+# Misc
+.venv
+report
+logs/*
+!logs/.gitkeep
+provision.yml
+provision.yaml

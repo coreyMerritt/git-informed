@@ -1,0 +1,59 @@
+[project]
+name = "git-better-status"
+version = "0.1.0"
+requires-python = ">=3.10.12"
+dependencies = [
+  "GitPython==3.1.50",
+  "rich==15.0.0"
+]
+
+[project.optional-dependencies]
+dev = [
+  "isort==7.0.0",
+  "mypy==1.18.2",
+  "pre-commit==4.4.0",
+  "pylint==4.0.2",
+  "pytest==9.0.0",
+  "ruff==0.14.4",
+]
+infra = []
+
+[build-system]
+requires = [
+  "setuptools",
+  "wheel"
+]
+build-backend = "setuptools.build_meta"
+
+[tool.isort]
+indent = "  "
+line_length = 120
+src_paths = [
+  "src",
+  "tests",
+]
+
+[tool.mypy]
+explicit_package_bases = true
+mypy_path = ["src", "tests"]
+
+[tool.pytest.ini_options]
+pythonpath = [
+  "src",
+]
+
+[tool.ruff]
+include = [
+  "pyproject.toml",
+  "src/**/*.py"
+]
+
+[tool.ruff.lint]
+select = [
+  "W292",   # No Newline at EOF
+  "W391"    # Extra Newline(s) at EOF
+]
+preview = true
+
+[tool.setuptools]
+package-dir = {"" = "src"}
