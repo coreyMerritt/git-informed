@@ -18,6 +18,7 @@ path = Path(args.path)
 # Instantiations
 console = Console()
 happy_repos = Table("Happy Repos", style="#22C55E")
+repos_missing_git_hooks = Table("Repos Missing Git Hooks", style="#00FFEA")
 repos_missing_commits = Table("Repos Missing Commits", style="#FFD700")
 repos_with_untracked_files = Table("Repos with Untracked Files", style="#FFA500")
 repos_missing_upstream = Table("Repos Missing an Upstream", style="#FF6347")
@@ -45,13 +46,22 @@ for project_path in sorted(path.iterdir()):
   if "nothing to commit" not in status:
     repos_missing_commits.add_row(str(project_path))
     happy_repo = False
-  # happy_repo
+  # Missing Git Hooks
+  has_git_hooks = all(
+    (Path(repo.git_dir) / "hooks" / hook).exists() for hook in ("pre-push", "pre-commit", "post-commit")
+  )
+  if not has_git_hooks:
+    repos_missing_git_hooks.add_row(str(project_path))
+    happy_repo = False
+  # Happy_Repo
   if happy_repo:
     happy_repos.add_row(str(project_path))
 
 # Output
 if len(happy_repos.rows) > 0:
   console.print(happy_repos)
+if len(repos_missing_git_hooks.rows) > 0:
+  console.print(repos_missing_git_hooks)
 if len(repos_missing_commits.rows) > 0:
   console.print(repos_missing_commits)
 if len(repos_with_untracked_files.rows) > 0:
