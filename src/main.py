@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import argparse
 from concurrent.futures import ThreadPoolExecutor
+import os
 from pathlib import Path
 
 import git
@@ -35,7 +36,7 @@ for project_path in sorted(path.iterdir()):
     not_repos.add_row(str(project_path))
 
 # Fetch all repos concurrently
-with ThreadPoolExecutor(max_workers=10) as executor:
+with ThreadPoolExecutor(max_workers=os.cpu_count()) as executor:
   executor.map(lambda r: r.remotes.origin.fetch(), repos_by_path.values())
 
 # Categorize Projects
