@@ -23,6 +23,7 @@ happy_repos = Table("Happy Repos", style="#22C55E")
 repos_missing_git_hooks = Table("Repos Missing Git Hooks", style="#00FFEA")
 repos_missing_commits = Table("Repos Missing Commits", style="#FFD700")
 repos_with_untracked_files = Table("Repos with Untracked Files", style="#FFD700")
+repos_with_unpulled_commits = Table("Repos that are Behind", style="#FFA500")
 repos_with_unpushed_commits = Table("Repos with Unpushed Commits", style="#FFA500")
 repos_missing_upstream = Table("Repos Missing an Upstream", style="#FF6347")
 not_repos = Table("Not a Git Repo", style="#DC143C")
@@ -51,6 +52,10 @@ for project_path, repo in repos_by_path.items():
     repos_with_untracked_files.add_row(str(project_path))
     happy_repo = False
   status = repo.git.status()
+  # Unpulled Commits
+  if "Your branch is behind " in status:
+    repos_with_unpulled_commits.add_row(str(project_path))
+    happy_repo = False
   # Unpushed Commits
   if "Your branch is ahead of " in status:
     repos_with_unpushed_commits.add_row(str(project_path))
@@ -79,6 +84,8 @@ if len(repos_missing_commits.rows) > 0:
   console.print(repos_missing_commits)
 if len(repos_with_untracked_files.rows) > 0:
   console.print(repos_with_untracked_files)
+if len(repos_with_unpulled_commits.rows) > 0:
+  console.print(repos_with_unpulled_commits)
 if len(repos_with_unpushed_commits.rows) > 0:
   console.print(repos_with_unpushed_commits)
 if len(repos_missing_upstream.rows) > 0:
