@@ -24,7 +24,7 @@ repos_missing_upstream = Table("Repos Missing an Upstream", style="#FF6347")
 not_repos = Table("Not a Git Repo", style="#DC143C")
 
 # Categorize Projects
-for project_path in path.iterdir():
+for project_path in sorted(path.iterdir()):
   happy_repo = True
   # Not a git Repo
   try:
