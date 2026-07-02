@@ -8,7 +8,7 @@ class CategoryMap(str, Enum):
   MISSING_HOOKS = CategoryColor.INFO.value
   MISSING_COMMITS = CategoryColor.WARN.value
   UNTRACKED_FILES = CategoryColor.WARN.value
-  UNPULLED_COMMITS = CategoryColor.BIG_WARN.value
-  UNPUSHED_COMMITS = CategoryColor.BIG_WARN.value
-  MISSING_UPSTREAM = CategoryColor.BIG_WARN.value
-  NOT_REPO = CategoryColor.ERROR.value
+  UNPULLED_COMMITS = CategoryColor.ERROR.value
+  UNPUSHED_COMMITS = CategoryColor.ERROR.value
+  MISSING_UPSTREAM = CategoryColor.ERROR.value
+  NOT_REPO = CategoryColor.CRITICAL.value
