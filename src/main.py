@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import argparse
+from itertools import repeat
 import logging
 import os
 import re
@@ -14,106 +15,96 @@ from rich.console import Console
 from rich.table import Table
 from rich.text import Text
 
-from models.archive_map import ArchiveMap
-from models.category_map import CategoryMap
-from models.github_tag_map import GITHUB_TAG_MAP
-from models.privacy_map import PrivacyMap
-from models.project_type import ProjectType
+from models.archived_map import ARCHIVED_MAP
+from models.project_type_map import PROJECT_TYPE_MAP
+from models.private_color_map import PRIVATE_COLOR_MAP
+from models.tables import Tables
 
-# Args
-parser = argparse.ArgumentParser()
-parser.add_argument("projects_path", type=str)
-args = parser.parse_args()
-
-# Convert Arg Types
-some_path = Path(args.projects_path)
-
-# Global Instantiations
-def __build_table(title: str, color: CategoryMap) -> Table:
-  table = Table(
-    title=title,
-    style=color,
-    width=75,
-    title_style="bold white"
+def main(path: Path, github_token: Token) -> None:
+  github_session = Github(auth=github_token)
+  tables = Tables()
+  repos = __build_repo_dicts(
+    path=path,
+    not_repos_table=tables.not_repos
   )
-  table.add_column("Repo Name", width=37)
-  table.add_column("Project Type", width=16)
-  table.add_column("Privacy", width=11)
-  table.add_column("Activity", width=11)
-  return table
-console = Console()
-happy_repos = __build_table(title="Happy Repos", color=CategoryMap.HAPPY_REPO)
-repos_missing_git_hooks = __build_table(title="Repos missing Git Hooks", color=CategoryMap.MISSING_HOOKS)
-repos_missing_commits = __build_table(title="Repos missing Commits", color=CategoryMap.MISSING_COMMITS)
-repos_with_untracked_files = __build_table(title="Repos with Untracked Files", color=CategoryMap.UNTRACKED_FILES)
-repos_with_unpulled_commits = __build_table(title="Repos that are Behind", color=CategoryMap.UNPULLED_COMMITS)
-repos_with_unpushed_commits = __build_table(title="Repos with Unpushed Commits", color=CategoryMap.UNPUSHED_COMMITS)
-repos_missing_upstream = __build_table(title="Repos missing an Upstream", color=CategoryMap.MISSING_UPSTREAM)
-not_repos = Table(title="Not a Repo", style=CategoryMap.NOT_REPO, width=50)
-all_tables = (
-  happy_repos,
-  repos_missing_git_hooks,
-  repos_missing_commits,
-  repos_with_untracked_files,
-  repos_with_unpulled_commits,
-  repos_with_unpushed_commits,
-  repos_missing_upstream,
-  not_repos
-)
+  with ThreadPoolExecutor(max_workers=os.cpu_count()) as executor:
+    list(executor.map(
+      lambda r: r.remotes.origin.fetch(),
+      repos.values()
+    ))
+    list(executor.map(
+      __categorize_project,
+      repos.keys(),
+      repos.values(),
+      repeat(tables),
+      repeat(github_session)
+    ))
+  with ThreadPoolExecutor(max_workers=os.cpu_count()) as executor:
+    list(executor.map(
+      __sort_table,
+      tables.get_all_tables()
+    ))
+  __output_results(tables)
 
-def main() -> None:
+def __build_repo_dicts(path: Path, not_repos_table: Table) -> dict[Path, git.Repo]:
   repos: dict[Path, git.Repo] = {}
-  IS_SINGLE_PROJECT = (some_path / ".git").exists()
+  IS_SINGLE_PROJECT = (path / ".git").exists()
   if IS_SINGLE_PROJECT:
-    project_path = some_path
+    project_path = path
     repos[project_path] = git.Repo(project_path)
   else:
-    projects_path = some_path
+    projects_path = path
     for project_path in sorted(projects_path.iterdir()):
       try:
         repos[project_path] = git.Repo(project_path)
       except git.InvalidGitRepositoryError:
-        not_repos.add_row(project_path.resolve().name)
-  with ThreadPoolExecutor(max_workers=os.cpu_count()) as executor:
-    executor.map(
-      lambda r: r.remotes.origin.fetch(),
-      repos.values()
-    )
-    executor.map(
-      __categorize_project,
-      repos.keys(),
-      repos.values()
-    )
-  with ThreadPoolExecutor(max_workers=os.cpu_count()) as executor:
-    executor.map(
-      __sort_table,
-      all_tables
-    )
-  __output_results()
+        not_repos_table.add_row(project_path.resolve().name)
+  return repos
 
-def __categorize_project(project_path: Path, repo: git.Repo) -> None:
+def __categorize_project(project_path: Path, repo: git.Repo, tables: Tables, github_session: Github) -> None:
+  github_repo = __get_github_repo(repo=repo, session=github_session)
   project_name = project_path.resolve().name
   happy_repo = True
   IS_MISSING_UPSTREAM = len(repo.remote().refs) == 0
   if IS_MISSING_UPSTREAM:
-    __add_row(project_name=project_name, repo=repo, table=repos_missing_upstream)
+    __add_row(
+      project_name=project_name,
+      table=tables.repos_missing_upstream,
+      github_repo=github_repo
+    )
     happy_repo = False
   HAS_UNTRACKED_FILES = len(repo.untracked_files) > 0
   if HAS_UNTRACKED_FILES:
-    __add_row(project_name=project_name, repo=repo, table=repos_with_untracked_files)
+    __add_row(
+      project_name=project_name,
+      table=tables.repos_with_untracked_files,
+      github_repo=github_repo
+    )
     happy_repo = False
   status = repo.git.status()
   HAS_UNPULLED_COMMITS = "Your branch is behind " in status
   if HAS_UNPULLED_COMMITS:
-    __add_row(project_name=project_name, repo=repo, table=repos_with_unpulled_commits)
+    __add_row(
+      project_name=project_name,
+      table=tables.repos_with_unpulled_commits,
+      github_repo=github_repo
+    )
     happy_repo = False
   HAS_UNPUSHED_COMMITS = "Your branch is ahead of " in status
   if HAS_UNPUSHED_COMMITS:
-    __add_row(project_name=project_name, repo=repo, table=repos_with_unpushed_commits)
+    __add_row(
+      project_name=project_name,
+      table=tables.repos_with_unpushed_commits,
+      github_repo=github_repo
+    )
     happy_repo = False
   IS_MISSING_COMMITS = "nothing to commit" not in status
   if IS_MISSING_COMMITS:
-    __add_row(project_name=project_name, repo=repo, table=repos_missing_commits)
+    __add_row(
+      project_name=project_name,
+      table=tables.repos_missing_commits,
+      github_repo=github_repo
+    )
     happy_repo = False
   HAS_GIT_HOOKS = all((Path(repo.git_dir) / "hooks" / h).exists() for h in (
     "pre-commit",
@@ -121,34 +112,41 @@ def __categorize_project(project_path: Path, repo: git.Repo) -> None:
     "pre-push"
   ))
   if not HAS_GIT_HOOKS:
-    __add_row(project_name=project_name, repo=repo, table=repos_missing_git_hooks)
+    __add_row(
+      project_name=project_name,
+      table=tables.repos_missing_git_hooks,
+      github_repo=github_repo
+    )
     happy_repo = False
   if happy_repo:
-    __add_row(project_name=project_name, repo=repo, table=happy_repos)
+    __add_row(
+      project_name=project_name,
+      table=tables.happy_repos,
+      github_repo=github_repo
+    )
 
-def __add_row(project_name: str, repo: git.Repo, table: Table) -> None:
-  gh_repo = __build_github_repo(repo)
-  project_type = __get_project_type(gh_repo)
-  if gh_repo.private:
-    privacy_string = f"[{PrivacyMap.PRIVATE.value}]Private[/{PrivacyMap.PRIVATE.value}]"
-  else:
-    privacy_string = f"[{PrivacyMap.PUBLIC.value}]Public[/{PrivacyMap.PUBLIC.value}]"
-  if gh_repo.archived:
-    archive_string = f"[{ArchiveMap.ARCHIVED.value}]Archived[/{ArchiveMap.ARCHIVED.value}]"
-  else:
-    archive_string = f"[{ArchiveMap.ACTIVE.value}]Active[/{ArchiveMap.ACTIVE.value}]"
+def __add_row(project_name: str, table: Table, github_repo: Repository) -> None:
+  project_type = __get_project_type(github_repo)
+  project_type_text = project_type["text"]
+  project_type_color = project_type["color"]
+  project_type_string = f"[{project_type_color}]{project_type_text}[/{project_type_color}]"
+  private_color = PRIVATE_COLOR_MAP[str(github_repo.private)]["color"]
+  private_text = PRIVATE_COLOR_MAP[str(github_repo.private)]["text"]
+  private_string = f"[{private_color}]{private_text}[/{private_color}]"
+  archived_color = ARCHIVED_MAP[str(github_repo.archived)]["color"]
+  archived_text = ARCHIVED_MAP[str(github_repo.archived)]["text"]
+  archived_string = f"[{archived_color}]{archived_text}[/{archived_color}]"
   table.add_row(
     project_name,
-    project_type,
-    privacy_string,
-    archive_string
+    project_type_string,
+    private_string,
+    archived_string
   )
 
-def __build_github_repo(repo: git.Repo) -> Repository:
+def __get_github_repo(repo: git.Repo, session: Github) -> Repository:
   owner = __get_repo_owner(repo)
   name = __get_repo_name(repo)
-  gh = Github(auth=Token(os.environ["GITHUB_PAT"]))
-  return gh.get_repo(f"{owner}/{name}")
+  return session.get_repo(f"{owner}/{name}")
 
 def __get_repo_owner(repo: git.Repo) -> str:
   url = repo.remotes.origin.url
@@ -166,13 +164,13 @@ def __get_repo_name(repo: git.Repo) -> str:
   assert match, f"Could not parse owner/repo from: {url}"
   return match.group(2)
 
-def __get_project_type(gh_repo: Repository) -> ProjectType:
+def __get_project_type(gh_repo: Repository) -> dict:
   for tag in gh_repo.get_topics():
     try:
-      return GITHUB_TAG_MAP[tag]
+      return PROJECT_TYPE_MAP[tag]
     except KeyError:
       pass
-  return ProjectType.UNDEFINED
+  return PROJECT_TYPE_MAP[None]
 
 def __sort_table(table: Table) -> None:
   if not table.columns:
@@ -185,34 +183,41 @@ def __sort_table(table: Table) -> None:
   for column, sorted_cells in zip(table.columns, sorted_columns):
     column._cells = list(sorted_cells)  # pylint: disable=protected-access
 
-def __output_results() -> None:
+def __output_results(tables: Tables) -> None:
+  console = Console()
   print()
-  if len(happy_repos.rows) > 0:
-    console.print(happy_repos)
+  if len(tables.happy_repos.rows) > 0:
+    console.print(tables.happy_repos)
     print()
-  if len(repos_missing_git_hooks.rows) > 0:
-    console.print(repos_missing_git_hooks)
+  if len(tables.repos_missing_git_hooks.rows) > 0:
+    console.print(tables.repos_missing_git_hooks)
     print()
-  if len(repos_missing_commits.rows) > 0:
-    console.print(repos_missing_commits)
+  if len(tables.repos_missing_commits.rows) > 0:
+    console.print(tables.repos_missing_commits)
     print()
-  if len(repos_with_untracked_files.rows) > 0:
-    console.print(repos_with_untracked_files)
+  if len(tables.repos_with_untracked_files.rows) > 0:
+    console.print(tables.repos_with_untracked_files)
     print()
-  if len(repos_with_unpulled_commits.rows) > 0:
-    console.print(repos_with_unpulled_commits)
+  if len(tables.repos_with_unpulled_commits.rows) > 0:
+    console.print(tables.repos_with_unpulled_commits)
     print()
-  if len(repos_with_unpushed_commits.rows) > 0:
-    console.print(repos_with_unpushed_commits)
+  if len(tables.repos_with_unpushed_commits.rows) > 0:
+    console.print(tables.repos_with_unpushed_commits)
     print()
-  if len(repos_missing_upstream.rows) > 0:
-    console.print(repos_missing_upstream)
+  if len(tables.repos_missing_upstream.rows) > 0:
+    console.print(tables.repos_missing_upstream)
     print()
-  if len(not_repos.rows) > 0:
-    console.print(not_repos)
+  if len(tables.not_repos.rows) > 0:
+    console.print(tables.not_repos)
     print()
 
 
 if __name__ == "__main__":
   logging.getLogger("github").setLevel(logging.CRITICAL)
-  main()
+  parser = argparse.ArgumentParser()
+  parser.add_argument("projects_path", type=str)
+  args = parser.parse_args()
+  main(
+    path=Path(args.projects_path),
+    github_token=Token(os.environ["GITHUB_PAT"])
+  )
