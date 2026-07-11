@@ -29,10 +29,6 @@ def main(path: Path, github_token: Token) -> None:
   )
   with ThreadPoolExecutor(max_workers=os.cpu_count()) as executor:
     list(executor.map(
-      lambda r: r.remotes.origin.fetch(),
-      repos.values()
-    ))
-    list(executor.map(
       __categorize_project,
       repos.keys(),
       repos.values(),
@@ -62,8 +58,17 @@ def __build_repo_dicts(path: Path, not_repos_table: Table) -> dict[Path, git.Rep
   return repos
 
 def __categorize_project(project_path: Path, repo: git.Repo, tables: Tables, github_session: Github) -> None:
-  github_repo = __get_github_repo(repo=repo, session=github_session)
   project_name = project_path.resolve().name
+  try:
+    repo.remotes.origin.fetch()
+  except AttributeError:
+    __add_row(
+      project_name=project_name,
+      table=tables.repos_missing_upstream,
+      github_repo=None
+    )
+    return
+  github_repo = __get_github_repo(repo=repo, session=github_session)
   happy_repo = True
   IS_MISSING_UPSTREAM = len(repo.remote().refs) == 0
   if IS_MISSING_UPSTREAM:
@@ -125,16 +130,22 @@ def __categorize_project(project_path: Path, repo: git.Repo, tables: Tables, git
       github_repo=github_repo
     )
 
-def __add_row(project_name: str, table: Table, github_repo: Repository) -> None:
+def __add_row(project_name: str, table: Table, github_repo: Repository | None) -> None:
   project_type = __get_project_type(github_repo)
   project_type_text = project_type["text"]
   project_type_color = project_type["color"]
   project_type_string = f"[{project_type_color}]{project_type_text}[/{project_type_color}]"
-  private_color = PRIVATE_COLOR_MAP[str(github_repo.private)]["color"]
-  private_text = PRIVATE_COLOR_MAP[str(github_repo.private)]["text"]
+  if github_repo:
+    private_color = PRIVATE_COLOR_MAP[str(github_repo.private)]["color"]
+    private_text = PRIVATE_COLOR_MAP[str(github_repo.private)]["text"]
+    archived_color = ARCHIVED_MAP[str(github_repo.archived)]["color"]
+    archived_text = ARCHIVED_MAP[str(github_repo.archived)]["text"]
+  else:
+    private_color = "#DC143C"
+    private_text = "Undefined"
+    archived_color = "#DC143C"
+    archived_text = "Undefined"
   private_string = f"[{private_color}]{private_text}[/{private_color}]"
-  archived_color = ARCHIVED_MAP[str(github_repo.archived)]["color"]
-  archived_text = ARCHIVED_MAP[str(github_repo.archived)]["text"]
   archived_string = f"[{archived_color}]{archived_text}[/{archived_color}]"
   table.add_row(
     project_name,
@@ -164,7 +175,9 @@ def __get_repo_name(repo: git.Repo) -> str:
   assert match, f"Could not parse owner/repo from: {url}"
   return match.group(2)
 
-def __get_project_type(gh_repo: Repository) -> dict:
+def __get_project_type(gh_repo: Repository | None) -> dict:
+  if gh_repo is None:
+    return PROJECT_TYPE_MAP[None]
   for tag in gh_repo.get_topics():
     try:
       return PROJECT_TYPE_MAP[tag]
@@ -221,3 +234,4 @@ if __name__ == "__main__":
     path=Path(args.projects_path),
     github_token=Token(os.environ["GITHUB_PAT"])
   )
+

@@ -4,13 +4,13 @@ def _build_table(title: str, color: str) -> Table:
   table = Table(
     title=title,
     style=color,
-    width=75,
+    width=78,
     title_style="bold white"
   )
   table.add_column("Name", width=37)
   table.add_column("Type", width=16)
-  table.add_column("Privacy", width=11)
-  table.add_column("Activity", width=11)
+  table.add_column("Privacy", width=13)
+  table.add_column("Activity", width=12)
   return table
 
 class Tables:
@@ -70,3 +70,4 @@ class Tables:
       self.repos_with_untracked_files,
       self.not_repos
     ]
+
