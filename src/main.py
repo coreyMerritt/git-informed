@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 import argparse
-from itertools import repeat
 import logging
 import os
 import re
 from concurrent.futures import ThreadPoolExecutor
+from itertools import repeat
 from pathlib import Path
 
 import git

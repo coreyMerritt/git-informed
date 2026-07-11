@@ -7,46 +7,57 @@ def _build_table(title: str, color: str) -> Table:
     width=75,
     title_style="bold white"
   )
-  table.add_column("Repo Name", width=37)
-  table.add_column("Project Type", width=16)
+  table.add_column("Name", width=37)
+  table.add_column("Type", width=16)
   table.add_column("Privacy", width=11)
   table.add_column("Activity", width=11)
   return table
 
 class Tables:
-  happy_repos: Table = _build_table(
-    title="Happy Repos",
-    color="#22C55E"
-  )
-  repos_missing_commits: Table = _build_table(
-    title="Repos missing Commits",
-    color="#FFD700"
-  )
-  repos_missing_git_hooks: Table = _build_table(
-    title="Repos missing Git Hooks",
-    color="#00FFEA"
-  )
-  repos_missing_upstream: Table = _build_table(
-    title="Repos missing an Upstream",
-    color="#FFA500"
-  )
-  repos_with_unpulled_commits: Table = _build_table(
-    title="Repos that are Behind",
-    color="#FFA500"
-  )
-  repos_with_unpushed_commits: Table = _build_table(
-    title="Repos with Unpushed Commits",
-    color="#FFA500"
-  )
-  repos_with_untracked_files: Table = _build_table(
-    title="Repos with Untracked Files",
-    color="#FFD700"
-  )
-  not_repos: Table = Table(
-    title="Not a Repo",
-    style="#DC143C",
-    width=75
-  )
+  happy_repos: Table
+  repos_missing_commits: Table
+  repos_missing_git_hooks: Table
+  repos_missing_upstream: Table
+  repos_with_unpulled_commits: Table
+  repos_with_unpushed_commits: Table
+  repos_with_untracked_files: Table
+  not_repos: Table
+
+  def __init__(self):
+    self.happy_repos = _build_table(
+      title="Happy Repos",
+      color="#22C55E"
+    )
+    self.repos_missing_commits = _build_table(
+      title="Repos missing Commits",
+      color="#FFD700"
+    )
+    self.repos_missing_git_hooks = _build_table(
+      title="Repos missing Git Hooks",
+      color="#00FFEA"
+    )
+    self.repos_missing_upstream = _build_table(
+      title="Repos missing an Upstream",
+      color="#FFA500"
+    )
+    self.repos_with_unpulled_commits = _build_table(
+      title="Repos that are Behind",
+      color="#FFA500"
+    )
+    self.repos_with_unpushed_commits = _build_table(
+      title="Repos with Unpushed Commits",
+      color="#FFA500"
+    )
+    self.repos_with_untracked_files = _build_table(
+      title="Repos with Untracked Files",
+      color="#FFD700"
+    )
+    self.not_repos = Table(
+      title="Not a Repo",
+      style="#DC143C",
+      width=37
+    )
+    self.not_repos.add_column("Name")
 
   def get_all_tables(self) -> list[Table]:
     return [
